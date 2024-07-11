@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/codecrafters-io/http-server-starter-go/app/internal"
 	"net"
 	"os"
 	"strings"
@@ -30,7 +31,17 @@ func handleConnection(conn net.Conn) {
 		fmt.Printf("conn read failed %v\n", err)
 		return
 	}
+
+	fmt.Println("req: ", string(req))
 	reqSections := strings.Split(string(req), "\r\n")
+
+	/** find user agent header */
+	var userAgent string
+	for _, section := range reqSections {
+		if strings.HasPrefix(section, "User-Agent: ") {
+			userAgent = strings.TrimPrefix(section, "User-Agent: ")
+		}
+	}
 
 	// get request line
 	reqLine := reqSections[0]
@@ -38,22 +49,30 @@ func handleConnection(conn net.Conn) {
 
 	fmt.Println("path: ", path)
 
-	res := make([]byte, 0)
+	res := internal.NewResponse()
 
 	if strings.HasPrefix(path, "/echo/") {
 		echo := strings.Split(path, "/echo/")[1]
-		res = append(res, []byte("HTTP/1.1 200 OK\r\n")...)
-		res = append(res, []byte("Content-Type: text/plain\r\n")...)
-		res = append(res, []byte(fmt.Sprintf("Content-Length: %v\r\n", len(echo)))...)
-		res = append(res, []byte("\r\n")...) // End of headers
-		res = append(res, []byte(fmt.Sprintf("%s\r\n", echo))...)
+		res.WriteStatusOk().
+			WriteHeader("Content-Type", "text/plain").
+			WriteHeader("Content-Length", fmt.Sprintf("%v", len(echo))).
+			WriteHeadersEnd().
+			WriteBody(echo)
+	} else if strings.HasPrefix(path, "/user-agent") {
+		res.WriteStatusOk().
+			WriteHeader("Content-Type", "text/plain").
+			WriteHeader("Content-Length", fmt.Sprintf("%v", len(userAgent))).
+			WriteHeadersEnd().
+			WriteBody(userAgent)
 	} else if path == "/" {
-		res = append(res, []byte("HTTP/1.1 200 OK\r\n\r\n")...)
+		res.WriteStatusOk().
+			WriteHeadersEnd()
 	} else {
-		res = append(res, []byte("HTTP/1.1 404 Not Found\r\n\r\n")...)
+		res.WriteStatusLine("404", "Not Found").
+			WriteHeadersEnd()
 	}
 
-	_, err = conn.Write(res)
+	_, err = conn.Write(res.Buffer)
 	if err != nil {
 		fmt.Printf("conn write failed %v\n", err)
 		return

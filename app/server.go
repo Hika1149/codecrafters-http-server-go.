@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/codecrafters-io/http-server-starter-go/app/internal"
 	"net"
@@ -23,6 +24,9 @@ Response
 		HeaderName: HeaderValue
 	Body
 */
+
+var directory = flag.String("directory", "", "")
+
 func handleConnection(conn net.Conn) {
 
 	req := make([]byte, 1024*5)
@@ -54,16 +58,47 @@ func handleConnection(conn net.Conn) {
 	if strings.HasPrefix(path, "/echo/") {
 		echo := strings.Split(path, "/echo/")[1]
 		res.WriteStatusOk().
-			WriteHeader("Content-Type", "text/plain").
-			WriteHeader("Content-Length", fmt.Sprintf("%v", len(echo))).
+			SetContentType("text/plain").
+			SetContentLength(fmt.Sprintf("%v", len(echo))).
 			WriteHeadersEnd().
 			WriteBody(echo)
 	} else if strings.HasPrefix(path, "/user-agent") {
 		res.WriteStatusOk().
-			WriteHeader("Content-Type", "text/plain").
-			WriteHeader("Content-Length", fmt.Sprintf("%v", len(userAgent))).
+			SetContentType("text/plain").
+			SetContentLength(fmt.Sprintf("%v", len(userAgent))).
 			WriteHeadersEnd().
 			WriteBody(userAgent)
+	} else if strings.HasPrefix(path, "/files") {
+
+		filename := strings.TrimPrefix(path, "/files/")
+
+		fmt.Println("directory: ", *directory)
+		fmt.Println("filename: ", filename)
+		file, err := os.Open(fmt.Sprintf("%v%v", *directory, filename))
+		if err != nil {
+			fmt.Printf("open file failed err=%v\n", err)
+			res.WriteStatusLine("404", "Not Found").WriteHeadersEnd()
+		} else {
+			stat, err := file.Stat()
+			if err != nil {
+				fmt.Printf("file stat failed  err=%v\n", err)
+				return
+			}
+			content := make([]byte, 1024*4)
+			_, err = file.Read(content)
+			if err != nil {
+				fmt.Printf("file Read failed  err=%v\n", err)
+				return
+			}
+
+			res.WriteStatusOk().
+				SetContentType("application/octet-stream").
+				SetContentLength(fmt.Sprintf("%v", stat.Size())).
+				WriteHeadersEnd().
+				WriteBody(string(content))
+
+		}
+
 	} else if path == "/" {
 		res.WriteStatusOk().
 			WriteHeadersEnd()
@@ -82,6 +117,7 @@ func handleConnection(conn net.Conn) {
 func main() {
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	fmt.Println("Logs from your program will appear here!")
+	flag.Parse()
 
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {

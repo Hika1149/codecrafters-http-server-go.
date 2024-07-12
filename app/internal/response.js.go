@@ -2,6 +2,15 @@ package internal
 
 import "fmt"
 
+/*
+Response
+	Status line
+		HttpVersion StatusCode ReasonPhrase
+	Header
+		HeaderName: HeaderValue
+	Body
+*/
+
 type Response struct {
 	Buffer []byte
 }

@@ -9,25 +9,12 @@ import (
 	"strings"
 )
 
-/*
-*
-Request
-
-	Request line
-		HttpMethod  RequestTarget HttpVersion
-
-Response
-
-	Status line
-		HttpVersion StatusCode ReasonPhrase
-	Header
-		HeaderName: HeaderValue
-	Body
-*/
-
 var directory = flag.String("directory", "", "")
 
 func handleConnection(conn net.Conn) {
+
+	internal.ConnToRequest(conn)
+	return
 
 	req := make([]byte, 1024*5)
 	_, err := conn.Read(req)

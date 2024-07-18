@@ -50,3 +50,7 @@ func (r *Response) SetContentLength(str string) *Response {
 	r.WriteHeader("Content-Length", str)
 	return r
 }
+func (r *Response) SetContentEncoding(str string) *Response {
+	r.WriteHeader("Content-Encoding", str)
+	return r
+}

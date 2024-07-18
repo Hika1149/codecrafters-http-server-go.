@@ -11,6 +11,8 @@ import (
 
 var directory = flag.String("directory", "", "")
 
+var SupportedCompressions = []string{"gzip"}
+
 func GetFileContent(res *internal.Response, path string) {
 	filename := strings.TrimPrefix(path, "/files/")
 	file, err := os.Open(fmt.Sprintf("%v%v", *directory, filename))
@@ -64,17 +66,33 @@ func handleConnection(conn net.Conn) {
 	path := request.Path
 	userAgent := request.UserAgent
 
-	fmt.Println("path: ", path)
+	// get compress scheme that client supports
+	contentEncoding := request.Headers["Accept-Encoding"]
+	var compressMethod string
+	for _, c := range SupportedCompressions {
+		if contentEncoding == c {
+			compressMethod = c
+			break
+		}
+	}
 
+	fmt.Println("path: ", path)
 	res := internal.NewResponse()
 
 	if strings.HasPrefix(path, "/echo/") {
 		echo := strings.Split(path, "/echo/")[1]
+
 		res.WriteStatusOk().
 			SetContentType("text/plain").
-			SetContentLength(fmt.Sprintf("%v", len(echo))).
-			WriteHeadersEnd().
+			SetContentLength(fmt.Sprintf("%v", len(echo)))
+
+		if compressMethod != "" {
+			res.SetContentEncoding(compressMethod)
+		}
+
+		res.WriteHeadersEnd().
 			WriteBody(echo)
+
 	} else if strings.HasPrefix(path, "/user-agent") {
 		res.WriteStatusOk().
 			SetContentType("text/plain").

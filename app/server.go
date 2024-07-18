@@ -67,12 +67,14 @@ func handleConnection(conn net.Conn) {
 	userAgent := request.UserAgent
 
 	// get compress scheme that client supports
-	contentEncoding := request.Headers["Accept-Encoding"]
+	acceptEncodings := strings.Split(request.Headers["Accept-Encoding"], ", ")
 	var compressMethod string
-	for _, c := range SupportedCompressions {
-		if contentEncoding == c {
-			compressMethod = c
-			break
+	for _, s := range SupportedCompressions {
+		for _, c := range acceptEncodings {
+			if c == s {
+				compressMethod = s
+				break
+			}
 		}
 	}
 

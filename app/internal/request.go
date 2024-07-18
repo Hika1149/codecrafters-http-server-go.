@@ -2,9 +2,9 @@ package internal
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 )
 
@@ -27,40 +27,36 @@ type Request struct {
 }
 
 func NewRequest() *Request {
-	return &Request{}
+	return &Request{
+
+		Headers: make(map[string]string),
+	}
 }
 
-func scanDoubleNewLine(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	if atEOF && len(data) == 0 {
-		return 0, nil, nil
-	}
-	//if i := bytes.Index(data, []byte("\r\n")); i >= 0 {
-	//	return i + 2, data[0:i], nil
-	//}
+/**
 
-	if i := bytes.Index(data, []byte("\r\n\r\n")); i >= 0 {
-		return i + 4, data[0:i], nil
-	}
+bufio.NewScanner(conn) cause reading loop
+curl sends its request but does not close its side of the TCP connection afterward as is typical for most real-world clients
+and especially web browsers (they are not obliged to do that), and waits for response.
+Since your scanning code does not ever see the curl's (writing) side of the connection closed, it never receives an io.EOF "error" and hence never stops its reading loop
 
-	if atEOF {
-		return len(data), data, nil
-	}
-
-	return
-
-}
+*/
 
 func ConnToRequest(conn net.Conn) *Request {
-	/** read by line */
-	scanner := bufio.NewScanner(conn)
-
-	scanner.Split(bufio.ScanLines)
-	//scanner.Split(scanDoubleNewLine)
 
 	req := NewRequest()
+	/** read by line */
+	connByte := make([]byte, 1024*4)
+	_, err := conn.Read(connByte)
+	if err != nil {
+		fmt.Printf("conn read failed %v\n", err)
+		return req
+	}
+	rb := strings.NewReader(string(connByte))
 
+	scanner := bufio.NewScanner(rb)
+	scanner.Split(bufio.ScanLines)
 	for i := 0; scanner.Scan(); i++ {
-
 		line := scanner.Text()
 		fmt.Println("scan text: ", scanner.Text())
 		if i == 0 {
@@ -77,21 +73,20 @@ func ConnToRequest(conn net.Conn) *Request {
 			req.UserAgent = strings.TrimPrefix(line, "User-Agent: ")
 		}
 
-		// reached the end of the headers
-		//if strings.HasSuffix(line, "\r\n\r\n") {
-		//	break
-		//}
+		req.Headers[strings.Split(line, ": ")[0]] = strings.Split(line, ": ")[1]
 
 	}
+	// set req body
+	body := ""
+	for scanner.Scan() {
+		body += scanner.Text()
+	}
 
+	contentLength, _ := strconv.Atoi(req.Headers["Content-Length"])
+	fmt.Println("scan content length ", contentLength)
+	req.Body = []byte(body)[:contentLength]
+	fmt.Println("scan body: ", body, len(req.Body))
 	fmt.Println("scan completed")
-	body := make([]byte, 1024*4)
 
-	_, err := conn.Read(body)
-	if err != nil {
-		fmt.Printf("conn read failed %v\n", err)
-	}
-
-	fmt.Println("read text body: ", body)
 	return req
 }

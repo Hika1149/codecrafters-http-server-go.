@@ -11,32 +11,58 @@ import (
 
 var directory = flag.String("directory", "", "")
 
-func handleConnection(conn net.Conn) {
-
-	internal.ConnToRequest(conn)
-	return
-
-	req := make([]byte, 1024*5)
-	_, err := conn.Read(req)
+func GetFileContent(res *internal.Response, path string) {
+	filename := strings.TrimPrefix(path, "/files/")
+	file, err := os.Open(fmt.Sprintf("%v%v", *directory, filename))
 	if err != nil {
-		fmt.Printf("conn read failed %v\n", err)
+		fmt.Printf("open file failed err=%v\n", err)
+		res.WriteStatusLine("404", "Not Found").WriteHeadersEnd()
+	} else {
+		stat, err := file.Stat()
+		if err != nil {
+			fmt.Printf("file stat failed  err=%v\n", err)
+			return
+		}
+		content := make([]byte, 1024*4)
+		_, err = file.Read(content)
+		if err != nil {
+			fmt.Printf("file Read failed  err=%v\n", err)
+			return
+		}
+		res.WriteStatusOk().
+			SetContentType("application/octet-stream").
+			SetContentLength(fmt.Sprintf("%v", stat.Size())).
+			WriteHeadersEnd().
+			WriteBody(string(content))
+	}
+}
+
+func PostWriteFile(req *internal.Request, res *internal.Response, path string) {
+	filename := strings.TrimPrefix(path, "/files/")
+	file, err := os.Create(fmt.Sprintf("%v%v", *directory, filename))
+	defer file.Close()
+	if err != nil {
+		fmt.Printf("create file failed err=%v\n", err)
+		res.WriteStatusLine("500", "Internal Server Error").WriteHeadersEnd()
+		return
+	}
+	_, err = file.Write(req.Body)
+	if err != nil {
+		fmt.Printf("write file failed err=%v\n", err)
+		res.WriteStatusLine("500", "Internal Server Error").WriteHeadersEnd()
 		return
 	}
 
-	fmt.Println("req: ", string(req))
-	reqSections := strings.Split(string(req), "\r\n")
+	res.WriteStatusLine("201", "Created").WriteHeadersEnd()
 
-	/** find user agent header */
-	var userAgent string
-	for _, section := range reqSections {
-		if strings.HasPrefix(section, "User-Agent: ") {
-			userAgent = strings.TrimPrefix(section, "User-Agent: ")
-		}
-	}
+}
+func handleConnection(conn net.Conn) {
+
+	request := internal.ConnToRequest(conn)
 
 	// get request line
-	reqLine := reqSections[0]
-	path := strings.Split(reqLine, " ")[1]
+	path := request.Path
+	userAgent := request.UserAgent
 
 	fmt.Println("path: ", path)
 
@@ -56,34 +82,10 @@ func handleConnection(conn net.Conn) {
 			WriteHeadersEnd().
 			WriteBody(userAgent)
 	} else if strings.HasPrefix(path, "/files") {
-
-		filename := strings.TrimPrefix(path, "/files/")
-
-		fmt.Println("directory: ", *directory)
-		fmt.Println("filename: ", filename)
-		file, err := os.Open(fmt.Sprintf("%v%v", *directory, filename))
-		if err != nil {
-			fmt.Printf("open file failed err=%v\n", err)
-			res.WriteStatusLine("404", "Not Found").WriteHeadersEnd()
+		if request.Method == "POST" {
+			PostWriteFile(request, res, path)
 		} else {
-			stat, err := file.Stat()
-			if err != nil {
-				fmt.Printf("file stat failed  err=%v\n", err)
-				return
-			}
-			content := make([]byte, 1024*4)
-			_, err = file.Read(content)
-			if err != nil {
-				fmt.Printf("file Read failed  err=%v\n", err)
-				return
-			}
-
-			res.WriteStatusOk().
-				SetContentType("application/octet-stream").
-				SetContentLength(fmt.Sprintf("%v", stat.Size())).
-				WriteHeadersEnd().
-				WriteBody(string(content))
-
+			GetFileContent(res, path)
 		}
 
 	} else if path == "/" {
@@ -94,7 +96,7 @@ func handleConnection(conn net.Conn) {
 			WriteHeadersEnd()
 	}
 
-	_, err = conn.Write(res.Buffer)
+	_, err := conn.Write(res.Buffer)
 	if err != nil {
 		fmt.Printf("conn write failed %v\n", err)
 		return

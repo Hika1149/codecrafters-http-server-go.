@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"flag"
 	"fmt"
 	"github.com/codecrafters-io/http-server-starter-go/app/internal"
@@ -85,15 +87,32 @@ func handleConnection(conn net.Conn) {
 		echo := strings.Split(path, "/echo/")[1]
 
 		res.WriteStatusOk().
-			SetContentType("text/plain").
-			SetContentLength(fmt.Sprintf("%v", len(echo)))
+			SetContentType("text/plain")
 
 		if compressMethod != "" {
 			res.SetContentEncoding(compressMethod)
-		}
 
-		res.WriteHeadersEnd().
-			WriteBody(echo)
+			var buf bytes.Buffer
+			zw := gzip.NewWriter(&buf)
+			_, err := zw.Write([]byte(echo))
+			if err != nil {
+				fmt.Printf("gzip write failed %v\n", err)
+				return
+			}
+			if err := zw.Close(); err != nil {
+				fmt.Printf("gzip close failed %v\n", err)
+				return
+			}
+			fmt.Println("buf len:", buf.Len())
+			res.SetContentLength(fmt.Sprintf("%v", buf.Len())).
+				WriteHeadersEnd().
+				WriteBodyBytes(buf.Bytes())
+		} else {
+
+			res.SetContentLength(fmt.Sprintf("%v", len(echo))).
+				WriteHeadersEnd().
+				WriteBody(echo)
+		}
 
 	} else if strings.HasPrefix(path, "/user-agent") {
 		res.WriteStatusOk().

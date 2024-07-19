@@ -83,10 +83,10 @@ func ConnToRequest(conn net.Conn) *Request {
 	}
 
 	contentLength, _ := strconv.Atoi(req.Headers["Content-Length"])
-	fmt.Println("scan content length ", contentLength)
+	//fmt.Println("scan content length ", contentLength)
 	req.Body = []byte(body)[:contentLength]
-	fmt.Println("scan body: ", body, len(req.Body))
-	fmt.Println("scan completed")
+	//fmt.Println("scan body: ", body, len(req.Body))
+	//fmt.Println("scan completed")
 
 	return req
 }

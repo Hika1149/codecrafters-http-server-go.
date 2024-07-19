@@ -42,6 +42,10 @@ func (r *Response) WriteBody(body string) *Response {
 	r.Buffer = append(r.Buffer, []byte(body)...)
 	return r
 }
+func (r *Response) WriteBodyBytes(body []byte) *Response {
+	r.Buffer = append(r.Buffer, body...)
+	return r
+}
 func (r *Response) SetContentType(str string) *Response {
 	r.WriteHeader("Content-Type", str)
 	return r
